@@ -1,7 +1,6 @@
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi import HTTPException, Security
@@ -16,7 +15,7 @@ from encounter_api.types import SecretJson, SecretUUID
 class EncounterMetadata:
     createdAt: datetime = field(default_factory=datetime.utcnow)
     updatedAt: datetime = field(default_factory=datetime.utcnow)
-    createdBy: str  # TODO, str correct?
+    createdBy: str
 
 
 @dataclass(kw_only=True)
@@ -35,6 +34,10 @@ class EncounterState:
     clinical_data: SecretJson
     metadata: EncounterMetadata
     accesses: list[AccessEvent] = field(default_factory=list)
+
+
+class EncounterException(Exception):
+    pass
 
 
 class EncounterRepository:
@@ -62,20 +65,15 @@ class EncounterRepository:
         return encounter
 
     def get_encounter(self, encounter_id: UUID, user_id: str) -> EncounterState:
-        encounter = self.encounters[encounter_id]
+        try:
+            encounter = self.encounters[encounter_id]
+        except KeyError:
+            raise EncounterException(f"Encounter {encounter_id} not found")
         encounter.accesses.append(AccessEvent(accessedBy=user_id))
         return encounter
 
-    def list_encounters(self):
-        return self.encounters.values()
-
-    def get_audit_events(self):
-        results = []
-        for encounter in self.encounters.values():
-            results.append(AccessEvent)
-            for access in encounter.accesses:
-                yield access
-
+    def list_encounters(self) -> list[EncounterState]:
+        return list(self.encounters.values())
 
 def get_encounter_repository(request: Request):
     return request.app.state.encounter_repository

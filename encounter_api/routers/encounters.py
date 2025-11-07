@@ -1,17 +1,17 @@
 import logging
 from datetime import datetime
 from enum import Enum
-from typing import Optional, Any
+from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Path
+from fastapi import APIRouter, Depends, Path, HTTPException
 from pydantic import BaseModel, Field
 
 from encounter_api.dependencies import (
     get_encounter_repository,
     EncounterRepository,
     EncounterState,
-    get_current_user,
+    get_current_user, EncounterException,
 )
 from encounter_api.enums import EncounterType
 from encounter_api.types import SecretJson, SecretUUID
@@ -33,7 +33,7 @@ class CreateEncounterRequest(BaseModel):
     encounter_type: EncounterType = Field(alias="encounterType")
     clinical_data: SecretJson = Field(alias="clinicalData")
 
-    class Config:
+    class ConfigDict:
         populate_by_name = True
         alias_generator = None
 
@@ -96,7 +96,10 @@ def get_encounter(
     current_user: str = Depends(get_current_user),
     encounter_repository: EncounterRepository = Depends(get_encounter_repository),
 ) -> GetEncounterResponse:
-    encounter = encounter_repository.get_encounter(encounter_id, user_id=current_user)
+    try:
+        encounter = encounter_repository.get_encounter(encounter_id, user_id=current_user)
+    except EncounterException as e:
+        raise HTTPException(status_code=404, detail=str(e))
     return GetEncounterResponse.from_encounter(encounter)
 
 
@@ -116,7 +119,7 @@ class EncounterQuery(BaseModel):
     start_date_time: Optional[datetime] = Field(None, alias="startDateTime")
     end_date_time: Optional[datetime] = Field(None, alias="endDateTime")
 
-    class Config:
+    class ConfigDict:
         populate_by_name = True  # allow internal snake_case names
 
 
