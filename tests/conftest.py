@@ -1,4 +1,6 @@
+import logging
 import pytest
+import structlog
 from starlette.testclient import TestClient
 
 from encounter_api.fastapi_app import create_app

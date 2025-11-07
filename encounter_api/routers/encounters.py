@@ -1,6 +1,7 @@
+import logging
 from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Optional, Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Path
@@ -13,13 +14,20 @@ from encounter_api.dependencies import (
     get_current_user,
 )
 from encounter_api.enums import EncounterType
-from encounter_api.types import SecretJson
+from encounter_api.types import SecretJson, SecretUUID
 
-router = APIRouter()
+logger = logging.getLogger(__name__)
+
+class AuthenticatedRouter(APIRouter):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.dependencies.append(Depends(get_current_user))
+
+router = AuthenticatedRouter()
 
 
 class CreateEncounterRequest(BaseModel):
-    patient_id: UUID = Field(alias="patientId")
+    patient_id: SecretUUID = Field(alias="patientId")
     provider_id: UUID = Field(alias="providerId")
     encounter_date: datetime = Field(alias="encounterDate")
     encounter_type: EncounterType = Field(alias="encounterType")
@@ -38,7 +46,7 @@ class EncounterMetadata(BaseModel):
 
 class GetEncounterResponse(BaseModel):
     encounterId: UUID
-    patientId: UUID
+    patientId: SecretUUID
     providerId: UUID
     encounterDate: datetime
     encounterType: EncounterType
@@ -68,6 +76,9 @@ def create_encounter(
     current_user: str = Depends(get_current_user),
     encounter_repository: EncounterRepository = Depends(get_encounter_repository),
 ) -> GetEncounterResponse:
+    #
+    logger.info(f"create_encounter: {encounter_request}")
+
     encounter = encounter_repository.add_encounter(
         encounter_request.patient_id,
         encounter_request.provider_id,
@@ -112,26 +123,34 @@ class EncounterQuery(BaseModel):
 @router.get("/audit/encounters")
 def list_audit_events_for_encounters(
     q: EncounterQuery = Depends(),
-    current_user: str = Depends(get_current_user),
     encounter_repository: EncounterRepository = Depends(get_encounter_repository),
 ) -> list[AuditEventResponse]:
     results = []
     for encounter in encounter_repository.list_encounters():
-        results.append(
-            AuditEventResponse(
-                encounterId=encounter.encounter_id,
-                accessType=AccessType.WRITE,
-                userId=encounter.metadata.createdBy,
-                accessedOn=encounter.metadata.createdAt,
-            )
+        write_event = AuditEventResponse(
+            encounterId=encounter.encounter_id,
+            accessType=AccessType.WRITE,
+            userId=encounter.metadata.createdBy,
+            accessedOn=encounter.metadata.createdAt,
         )
+        if _matches_filter(write_event.accessedOn, q):
+            results.append(write_event)
+
         for access in encounter.accesses:
-            results.append(
-                AuditEventResponse(
-                    encounterId=encounter.encounter_id,
-                    accessType=AccessType.READ,
-                    userId=access.accessedBy,
-                    accessedOn=access.accessedOn,
-                )
+            read_event = AuditEventResponse(
+                encounterId=encounter.encounter_id,
+                accessType=AccessType.READ,
+                userId=access.accessedBy,
+                accessedOn=access.accessedOn,
             )
+            if _matches_filter(read_event.accessedOn, q):
+                results.append(read_event)
     return results
+
+
+def _matches_filter(accessed_on: datetime, query: EncounterQuery) -> bool:
+    if query.start_date_time and accessed_on < query.start_date_time:
+        return False
+    if query.end_date_time and accessed_on > query.end_date_time:
+        return False
+    return True

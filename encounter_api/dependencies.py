@@ -9,7 +9,7 @@ from fastapi.security import APIKeyHeader
 from starlette.requests import Request
 
 from encounter_api.enums import EncounterType
-from encounter_api.types import SecretJson
+from encounter_api.types import SecretJson, SecretUUID
 
 
 @dataclass(kw_only=True)
@@ -28,7 +28,7 @@ class AccessEvent:
 @dataclass(kw_only=True)
 class EncounterState:
     encounter_id: UUID = field(default_factory=uuid4)
-    patient_id: UUID
+    patient_id: SecretUUID
     provider_id: UUID
     encounter_datetime: datetime
     encounter_type: EncounterType
@@ -43,7 +43,7 @@ class EncounterRepository:
 
     def add_encounter(
         self,
-        patient_id: UUID,
+        patient_id: SecretUUID,
         provider_id: UUID,
         encounter_datetime: datetime,
         encounter_type: EncounterType,
