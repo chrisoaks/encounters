@@ -16,6 +16,12 @@ uvicorn encounter_api.fastapi_app:create_app --factory --reload
     - This introduces some duplication as most models have to be declared twice.
     - However, it forces more intentionality when changing the public interface.
   - Since python prefers snake_case, camelCase keys as requested by the documentation are converted at the api boundary.
+  - One detail worth calling out, I did not include any of the filters mentioned for `GET /encounters/:encounterId`
+    - These would allow a user asking for a particular encounter to also specify a date range, provider, and patient.
+    - I doubt there's such a use case: 
+      - a user equipped with an encounter id wouldn't want their query to fail just because it falls outside a date range. 
+      - Moreover, uuids are unique across the entire uuid-space, and are not re-used for different patients or providers.
+      - So such filtering is already implicit.
 - Alternatives considered
   - Considered modeling audit events separately from encounter data, but decided the requirements didn't warrant it.
   - list_audit_events_for_encounters is taking all the filtering responsibilities
