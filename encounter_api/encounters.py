@@ -9,11 +9,10 @@ from pydantic import BaseModel, Field
 
 from encounter_api.dependencies import (
     get_encounter_repository,
-    EncounterRepository,
-    EncounterState,
     get_current_user,
-    EncounterException,
 )
+from encounter_api.repository import EncounterException, EncounterRepository
+from encounter_api.state import EncounterState
 from encounter_api.enums import EncounterType
 from encounter_api.types import SecretJson, SecretUUID
 

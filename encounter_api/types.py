@@ -21,14 +21,6 @@ class SecretJson:
     def __str__(self):
         return "**********"
 
-    def __eq__(self, other):
-        if isinstance(other, SecretJson):
-            return self._value == other._value
-        return False
-
-    def json(self) -> str:
-        return json.dumps(self._value)
-
     @classmethod
     def __get_pydantic_core_schema__(
         cls,
@@ -70,13 +62,6 @@ class SecretUUID:
     def __str__(self) -> str:
         return "**********"
 
-    def __eq__(self, other: object) -> bool:
-        if isinstance(other, SecretUUID):
-            return self._value == other._value
-        if isinstance(other, UUID):
-            return self._value == other
-        return False
-
     @classmethod
     def __get_pydantic_core_schema__(
         cls,
@@ -86,15 +71,10 @@ class SecretUUID:
         def validate(value: Any) -> "SecretUUID":
             if isinstance(value, SecretUUID):
                 return value
-            if isinstance(value, UUID):
-                return cls(value)
-            # For strings, convert to UUID first
             if isinstance(value, str):
                 return cls(UUID(value))
             raise ValueError(f"Cannot convert {type(value)} to SecretUUID")
 
-        # for JSON / python dumps, expose the underlying UUID as a string,
-        # same idea as SecretStr exposing the underlying str
         def serialize(value: "SecretUUID") -> str:
             return str(value.get_secret_value())
 

@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 
-from .dependencies import EncounterRepository
-from .routers.encounters import router as encounters_router
+from .repository import EncounterRepository
+from .encounters import router as encounters_router
 
 
 def create_app() -> FastAPI:
