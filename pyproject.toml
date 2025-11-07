@@ -3,4 +3,14 @@ name = "jimini-encounter-api"
 version = "0.1.0"
 description = "Add your description here"
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "fastapi>=0.121.0",
+    "uvicorn>=0.38.0",
+]
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "pytest>=8.4.2",
+    "ruff>=0.14.4",
+]
