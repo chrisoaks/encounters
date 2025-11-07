@@ -29,7 +29,7 @@
 
 
 Coverage report as of ccbaa0bfd90cd48f2792d34a630d25e721a6e199:
-
+```
 Name                            Stmts   Miss  Cover
 ---------------------------------------------------
 encounter_api/__init__.py           1      0   100%
@@ -42,3 +42,4 @@ encounter_api/state.py             24      0   100%
 encounter_api/types.py             45      3    93%
 ---------------------------------------------------
 TOTAL                             202      3    99%
+```
