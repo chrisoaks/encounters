@@ -11,17 +11,20 @@ from encounter_api.dependencies import (
     get_encounter_repository,
     EncounterRepository,
     EncounterState,
-    get_current_user, EncounterException,
+    get_current_user,
+    EncounterException,
 )
 from encounter_api.enums import EncounterType
 from encounter_api.types import SecretJson, SecretUUID
 
 logger = logging.getLogger(__name__)
 
+
 class AuthenticatedRouter(APIRouter):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.dependencies.append(Depends(get_current_user))
+
 
 router = AuthenticatedRouter()
 
@@ -76,7 +79,6 @@ def create_encounter(
     current_user: str = Depends(get_current_user),
     encounter_repository: EncounterRepository = Depends(get_encounter_repository),
 ) -> GetEncounterResponse:
-    #
     logger.info(f"create_encounter: {encounter_request}")
 
     encounter = encounter_repository.add_encounter(
@@ -97,7 +99,9 @@ def get_encounter(
     encounter_repository: EncounterRepository = Depends(get_encounter_repository),
 ) -> GetEncounterResponse:
     try:
-        encounter = encounter_repository.get_encounter(encounter_id, user_id=current_user)
+        encounter = encounter_repository.get_encounter(
+            encounter_id, user_id=current_user
+        )
     except EncounterException as e:
         raise HTTPException(status_code=404, detail=str(e))
     return GetEncounterResponse.from_encounter(encounter)

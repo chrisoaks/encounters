@@ -42,7 +42,7 @@ class EncounterException(Exception):
 
 class EncounterRepository:
     def __init__(self) -> None:
-        self.encounters: dict[UUID, EncounterState] = defaultdict()
+        self.encounters: dict[UUID, EncounterState] = dict()
 
     def add_encounter(
         self,
@@ -74,6 +74,7 @@ class EncounterRepository:
 
     def list_encounters(self) -> list[EncounterState]:
         return list(self.encounters.values())
+
 
 def get_encounter_repository(request: Request):
     return request.app.state.encounter_repository
