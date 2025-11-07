@@ -9,6 +9,7 @@ from fastapi.security import APIKeyHeader
 from starlette.requests import Request
 
 from encounter_api.enums import EncounterType
+from encounter_api.types import SecretJson
 
 
 @dataclass(kw_only=True)
@@ -19,18 +20,25 @@ class EncounterMetadata:
 
 
 @dataclass(kw_only=True)
+class AccessEvent:
+    accessedOn: datetime = field(default_factory=datetime.utcnow)
+    accessedBy: str
+
+
+@dataclass(kw_only=True)
 class EncounterState:
     encounter_id: UUID = field(default_factory=uuid4)
     patient_id: UUID
     provider_id: UUID
     encounter_datetime: datetime
     encounter_type: EncounterType
-    clinical_data: dict[str, Any]  # TODO restriction correct?
+    clinical_data: SecretJson
     metadata: EncounterMetadata
+    accesses: list[AccessEvent] = field(default_factory=list)
 
 
 class EncounterRepository:
-    def __init__(self):
+    def __init__(self) -> None:
         self.encounters: dict[UUID, EncounterState] = defaultdict()
 
     def add_encounter(
@@ -39,7 +47,7 @@ class EncounterRepository:
         provider_id: UUID,
         encounter_datetime: datetime,
         encounter_type: EncounterType,
-        clinical_data: dict[str, Any],
+        clinical_data: SecretJson,
         created_by: str,
     ) -> EncounterState:
         encounter = EncounterState(
@@ -53,18 +61,33 @@ class EncounterRepository:
         self.encounters[encounter.encounter_id] = encounter
         return encounter
 
-    def get_encounter(self, encounter_id: UUID) -> EncounterState:
-        return self.encounters[encounter_id]
+    def get_encounter(self, encounter_id: UUID, user_id: str) -> EncounterState:
+        encounter = self.encounters[encounter_id]
+        encounter.accesses.append(AccessEvent(accessedBy=user_id))
+        return encounter
+
+    def list_encounters(self):
+        return self.encounters.values()
+
+    def get_audit_events(self):
+        results = []
+        for encounter in self.encounters.values():
+            results.append(AccessEvent)
+            for access in encounter.accesses:
+                yield access
 
 
 def get_encounter_repository(request: Request):
     return request.app.state.encounter_repository
+
+
 USERS = {
     "secret123": "user_1",
     "secret456": "user_2",
 }
 
 api_key_header = APIKeyHeader(name="X-API-Key")
+
 
 def get_current_user(api_key: str = Security(api_key_header)):
     if api_key not in USERS:

@@ -1,77 +1,33 @@
-import json
 from datetime import datetime
-from typing import Any
+from enum import Enum
+from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
-from pydantic import BaseModel, ConfigDict, GetCoreSchemaHandler
-from pydantic_core import CoreSchema, core_schema
+from fastapi import APIRouter, Depends, Path
+from pydantic import BaseModel, Field
 
 from encounter_api.dependencies import (
     get_encounter_repository,
     EncounterRepository,
-    EncounterState, get_current_user,
+    EncounterState,
+    get_current_user,
 )
 from encounter_api.enums import EncounterType
+from encounter_api.types import SecretJson
 
 router = APIRouter()
 
 
-class SecretJson:
-    __slots__ = ("_value",)
-
-    def __init__(self, value: Any):
-        self._value = value
-
-    def get_secret_value(self) -> Any:
-        return self._value
-
-    def __repr__(self):
-        return "SecretJson('**********')"
-
-    def __str__(self):
-        return "**********"
-
-    def __eq__(self, other):
-        if isinstance(other, SecretJson):
-            return self._value == other._value
-        return False
-
-    def json(self) -> str:
-        return json.dumps(self._value)
-
-    @classmethod
-    def __get_pydantic_core_schema__(
-        cls,
-        source_type: Any,
-        handler: GetCoreSchemaHandler,
-    ) -> CoreSchema:
-        # validator: any JSON → SecretJson
-        def validate(value: Any) -> "SecretJson":
-            if isinstance(value, SecretJson):
-                return value
-            return cls(value)
-
-        # serializer: SecretJson → underlying JSON value
-        def serialize(value: "SecretJson") -> Any:
-            return value.get_secret_value()
-
-        return core_schema.no_info_after_validator_function(
-            validate,
-            core_schema.any_schema(),
-            serialization=core_schema.plain_serializer_function_ser_schema(
-                serialize,
-                when_used="json",
-            ),
-        )
-
-
 class CreateEncounterRequest(BaseModel):
-    patientId: UUID
-    providerId: UUID
-    encounterDate: datetime
-    encounterType: EncounterType
-    clinicalData: SecretJson
+    patient_id: UUID = Field(alias="patientId")
+    provider_id: UUID = Field(alias="providerId")
+    encounter_date: datetime = Field(alias="encounterDate")
+    encounter_type: EncounterType = Field(alias="encounterType")
+    clinical_data: SecretJson = Field(alias="clinicalData")
+
+    class Config:
+        populate_by_name = True
+        alias_generator = None
 
 
 class EncounterMetadata(BaseModel):
@@ -113,11 +69,11 @@ def create_encounter(
     encounter_repository: EncounterRepository = Depends(get_encounter_repository),
 ) -> GetEncounterResponse:
     encounter = encounter_repository.add_encounter(
-        encounter_request.patientId,
-        encounter_request.providerId,
-        encounter_request.encounterDate,
-        encounter_request.encounterType,
-        encounter_request.clinicalData,
+        encounter_request.patient_id,
+        encounter_request.provider_id,
+        encounter_request.encounter_date,
+        encounter_request.encounter_type,
+        encounter_request.clinical_data,
         current_user,
     )
     return GetEncounterResponse.from_encounter(encounter)
@@ -125,16 +81,57 @@ def create_encounter(
 
 @router.get("/encounters/{encounterId}")
 def get_encounter(
-    encounterId: UUID,
+    encounter_id: UUID = Path(alias="encounterId"),
     current_user: str = Depends(get_current_user),
     encounter_repository: EncounterRepository = Depends(get_encounter_repository),
 ) -> GetEncounterResponse:
-    encounter = encounter_repository.get_encounter(encounterId)
+    encounter = encounter_repository.get_encounter(encounter_id, user_id=current_user)
     return GetEncounterResponse.from_encounter(encounter)
+
+
+class AccessType(Enum):
+    READ = "read"
+    WRITE = "write"
+
+
+class AuditEventResponse(BaseModel):
+    encounterId: UUID
+    accessType: AccessType
+    userId: str
+    accessedOn: datetime
+
+
+class EncounterQuery(BaseModel):
+    start_date_time: Optional[datetime] = Field(None, alias="startDateTime")
+    end_date_time: Optional[datetime] = Field(None, alias="endDateTime")
+
+    class Config:
+        populate_by_name = True  # allow internal snake_case names
 
 
 @router.get("/audit/encounters")
 def list_audit_events_for_encounters(
-    startDateTime: datetime, endDateTime: datetime
-) -> list[GetEncounterResponse]:
-    return []
+    q: EncounterQuery = Depends(),
+    current_user: str = Depends(get_current_user),
+    encounter_repository: EncounterRepository = Depends(get_encounter_repository),
+) -> list[AuditEventResponse]:
+    results = []
+    for encounter in encounter_repository.list_encounters():
+        results.append(
+            AuditEventResponse(
+                encounterId=encounter.encounter_id,
+                accessType=AccessType.WRITE,
+                userId=encounter.metadata.createdBy,
+                accessedOn=encounter.metadata.createdAt,
+            )
+        )
+        for access in encounter.accesses:
+            results.append(
+                AuditEventResponse(
+                    encounterId=encounter.encounter_id,
+                    accessType=AccessType.READ,
+                    userId=access.accessedBy,
+                    accessedOn=access.accessedOn,
+                )
+            )
+    return results

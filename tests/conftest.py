@@ -17,12 +17,14 @@ def client_1(app):
         headers={"X-API-Key": "secret123"},
     )
 
+
 @pytest.fixture
 def client_2(app):
     return TestClient(
         app,
         headers={"X-API-Key": "secret456"},
     )
+
 
 @pytest.fixture
 def unauthenticated_client(app):
